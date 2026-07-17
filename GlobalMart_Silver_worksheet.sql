@@ -3,7 +3,7 @@ ALTER SESSION SET TIMEZONE = 'Asia/Kolkata';
 
 create or replace schema silver;
 
-// creating an new table cleaned_pos_transaction from bronze schema with TASK implemented 
+-- creating an new table cleaned_pos_transaction from bronze schema with TASK implemented 
 
 CREATE OR REPLACE TABLE bronze_db.silver.cleaned_pos_transaction (
     transaction_id      VARCHAR(50),
@@ -27,7 +27,7 @@ CREATE OR REPLACE TABLE bronze_db.silver.cleaned_pos_transaction (
     loyalty_points      NUMBER(10,0)
 );
 
-// -- creating TASK of merge statement which will work whenever the POs_stream will get new data 
+-- -- creating TASK of merge statement which will work whenever the POs_stream will get new data 
 
 create or replace task start_merge_when_stream_updates
 warehouse = 'COMPUTE_WH'
@@ -106,7 +106,7 @@ INSERT (
         source.UNIT_PRICE, source.DISCOUNT_PCT, source.TOTAL_AMOUNT, source.PAYMENT_METHOD, source.LOYALTY_POINTS
     );
 
-// for first time when we create or replace an task we have to resume the task 
+-- for first time when we create or replace an task we have to resume the task 
 alter task start_merge_when_stream_updates resume ;
 select * FROM TABLE(INFORMATION_SCHEMA.TASK_HISTORY()) order by scheduled_time desc;
 select * from cleaned_pos_transaction ;
@@ -118,7 +118,7 @@ select * from cleaned_pos_transaction where transaction_id = 'TXN_8629358A69';
 //--------------------------------------------------------------------------------------------------------------------------------------//
 
 
-// creating cleaned parquet data of ERP ORDERS from bronze schemaa to silver schema 
+-- creating cleaned parquet data of ERP ORDERS from bronze schemaa to silver schema 
 
 CREATE OR REPLACE TABLE erp_orders (
     order_id            VARCHAR(50),
@@ -193,7 +193,7 @@ select * from erp_orders;
 
 
 
-// creating table for Parquet file format table storage in structured format
+-- creating table for Parquet file format table storage in structured format
 
 CREATE OR REPLACE TABLE bronze_db.silver.inventory_snapshots (
     snapshot_date       DATE,
@@ -239,7 +239,7 @@ select
 
 
 
-// creating the table for IOT structured data storeage 
+-- creating the table for IOT structured data storeage 
 CREATE OR REPLACE TABLE bronze_db.silver.device_event_readings_from_IOT (
 
     alert_type          varchar(20),
@@ -280,12 +280,12 @@ CREATE OR REPLACE TABLE bronze_db.silver.device_event_readings_from_IOT (
     sensor_unit )
 
     select 
-    // accessing the nested arry of "alerts" column using lateral flatten 
+    -- accessing the nested arry of "alerts" column using lateral flatten 
     a.value:alert_type::varchar ,
     a.value:severity::varchar ,
     a.value:triggered_at::timestamp ,
 
-    // normal columns accesse directly by varient column "row_col"
+    -- normal columns accesse directly by varient column "row_col"
     row_col:store_id::VARCHAR  ,
     row_col:store_name::VARCHAR ,      
     row_col:device_id::VARCHAR   ,   
@@ -293,13 +293,13 @@ CREATE OR REPLACE TABLE bronze_db.silver.device_event_readings_from_IOT (
     row_col:event_type::VARCHAR    , 
     row_col:timestamp::TIMESTAMP ,
 
-    // nested array columns of metadata are accessed using dot(.) no need for lateral flatten 
+    -- nested array columns of metadata are accessed using dot(.) no need for lateral flatten 
     row_col:metadata.store_floor::INT ,      
     row_col:metadata.battery_pct::INT ,     
     row_col:metadata.signal_rssi::INT ,    
     row_col:metadata.firmware::VARCHAR ,
 
-    // The reading column contain multiple items so this needs to be LATERAL FLATTENED 
+    -- The reading column contain multiple items so this needs to be LATERAL FLATTENED 
 
     r.value:sensor::varchar,
     r.value:value::number(10,2),

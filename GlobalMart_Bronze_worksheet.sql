@@ -3,7 +3,7 @@ create database if not exists Bronze_db;
 create or replace schema bronze;
 
 
-// stage created for the Pos Transaction and IoT transaction and ERP ORDERS
+--stage created for the Pos Transaction and IoT transaction and ERP ORDERS
 create or replace stage External_stage
 URL = 's3://globalmart-pos-transactions'
 CREDENTIALS = (
@@ -14,7 +14,7 @@ AWS_SECRET_KEY = '9KwIfo3/0B8T6kTfzvQ6Nr2U18NaDS1hI6O1a7sb'
 
 // -----------------------------------------------------------------------------------------//
 
-// initializing the raw file which will have data which can be duplicated 
+-- initializing the raw file which will have data which can be duplicated 
 CREATE OR REPLACE TABLE pos_transaction (
     transaction_id      VARCHAR(50),
     store_id            VARCHAR(20),
@@ -38,7 +38,7 @@ CREATE OR REPLACE TABLE pos_transaction (
 );
 
 
-// creating SNOWPIPE on the POS_TRANSACTION TABLE
+-- creating SNOWPIPE on the POS_TRANSACTION TABLE
 
 create or replace pipe External_pipe
 AUTO_INGEST = TRUE
@@ -53,7 +53,7 @@ file_format =(
  );
 
 
-// checking the pipe working or not
+-- checking the pipe working or not
 
 DESC PIPE EXTERNAL_PIPE;
 
@@ -62,23 +62,23 @@ select * from pos_transaction;
 SELECT SYSTEM$PIPE_STATUS('External_pipe');
 
 
-// creating the stream for the pos_transaction table 
+-- creating the stream for the pos_transaction table 
 
 create or replace stream  stream_for_Pos 
 on  table pos_transaction; 
 
-// ========================================== // 
+-- ========================================== // 
 select * from pos_transaction;
 select * from stream_for_pos;
 
 
 //---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- //
 
-// creating IOT TABLE  with varient column 
+-- creating IOT TABLE  with varient column 
 create or replace table raw_IoT (row_col variant);
 
 
-// As per requirement created the Pipe for Iot for Auto Ingestion 
+-- As per requirement created the Pipe for Iot for Auto Ingestion 
  create or replace pipe pipe_for_Iot 
  auto_ingest = TRUE
  as 
@@ -89,13 +89,13 @@ type = 'JSON'
 strip_outer_array = TRUE
  );
 
-// checking IOT pipe status 
+-- checking IOT pipe status 
 describe pipe pipe_for_iot;
 SELECT SYSTEM$PIPE_STATUS('pipe_for_iot');
 
-// -------------------------------------------------------------------------------------------------------- // 
+-- -------------------------------------------------------------------------------------------------------- // 
 
-// creating table for ERP Praquet file format data 
+-- creating table for ERP Praquet file format data 
 
 CREATE OR REPLACE TABLE raw_erp_data (parquet_raw VARIANT);
 
@@ -109,7 +109,7 @@ FILE_FORMAT = (TYPE = 'PARQUET');
 SELECT parquet_raw FROM raw_erp_data;
 
 
-/// creating second ERP for for the parquet file FORMAT
+-- creating second ERP for for the parquet file FORMAT
 CREATE OR REPLACE TABLE raw_erp_Inventory_data (parquet_Inventory_raw VARIANT);
 
 COPY INTO raw_erp_Inventory_data 
