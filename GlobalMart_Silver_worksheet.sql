@@ -1,9 +1,8 @@
 use database BRONZE_DB;
-ALTER SESSION SET TIMEZONE = 'Asia/Kolkata';
 
 create or replace schema silver;
 
--- creating an new table cleaned_pos_transaction from bronze schema with TASK implemented 
+// creating an new table cleaned_pos_transaction from bronze schema with TASK implemented 
 
 CREATE OR REPLACE TABLE bronze_db.silver.cleaned_pos_transaction (
     transaction_id      VARCHAR(50),
@@ -27,7 +26,7 @@ CREATE OR REPLACE TABLE bronze_db.silver.cleaned_pos_transaction (
     loyalty_points      NUMBER(10,0)
 );
 
--- -- creating TASK of merge statement which will work whenever the POs_stream will get new data 
+// -- creating TASK of merge statement which will work whenever the POs_stream will get new data 
 
 create or replace task start_merge_when_stream_updates
 warehouse = 'COMPUTE_WH'
@@ -106,19 +105,22 @@ INSERT (
         source.UNIT_PRICE, source.DISCOUNT_PCT, source.TOTAL_AMOUNT, source.PAYMENT_METHOD, source.LOYALTY_POINTS
     );
 
--- for first time when we create or replace an task we have to resume the task 
+// for first time when we create or replace an task we have to resume the task 
 alter task start_merge_when_stream_updates resume ;
 select * FROM TABLE(INFORMATION_SCHEMA.TASK_HISTORY()) order by scheduled_time desc;
 select * from cleaned_pos_transaction ;
 
 
-describe table cleaned_pos_transaction;
 
-select * from cleaned_pos_transaction where transaction_id = 'TXN_8629358A69';
+
+
+
+
+
 //--------------------------------------------------------------------------------------------------------------------------------------//
 
 
--- creating cleaned parquet data of ERP ORDERS from bronze schemaa to silver schema 
+// creating cleaned parquet data of ERP ORDERS from bronze schemaa to silver schema 
 
 CREATE OR REPLACE TABLE erp_orders (
     order_id            VARCHAR(50),
@@ -139,12 +141,79 @@ CREATE OR REPLACE TABLE erp_orders (
     supplier_id         VARCHAR(20),
     supplier_name       VARCHAR(150),
     supplier_city       VARCHAR(100),
-    warehouse_id        VARCHAR(20)
+    warehouse_id        VARCHAR(20) ,
+    created_at          TIMESTAMP_NTZ(),
+    updated_at          TIMESTAMP_NTZ()
 );
 
 
 
-INSERT INTO bronze_db.silver.erp_orders (
+//===================================================================================================================================
+-- CREATING CDC FOR ERP ORDERS TABLE 
+--===========================================================================================================================----==
+CREATE TASK task_for_ERP
+warehouse = 'COMPUTE_WH'
+schedule = '1 minute'
+when system$stream_has_data('bronze_db.bronze.stream_raw_erp_data')
+as
+Merge INTO bronze_db.silver.erp_orders as  target using 
+(
+select 
+    parquet_raw:order_id::VARCHAR        as  order_id,
+    parquet_raw:order_date::TIMESTAMP    as  order_date,
+    parquet_raw:order_status::VARCHAR    as  order_status,
+    parquet_raw:expected_delivery::DATE  as  expected_delivery,
+    parquet_raw:actual_delivery::DATE    as  actual_delivery,
+    parquet_raw:is_late::BOOLEAN         as  is_late,    
+    parquet_raw:lead_time_days::INT      as  lead_time_days,
+    parquet_raw:category::VARCHAR        as  category,
+    parquet_raw:product_sku::VARCHAR     as  product_sku,
+    parquet_raw:quantity_ordered::INT    as  quantity_ordered,
+    parquet_raw:quantity_received::INT   as  quantity_received,
+    parquet_raw:unit_cost::NUMBER(10,2)  as  unit_cost,
+    parquet_raw:total_cost::NUMBER(12,2) as  total_cost,
+    parquet_raw:store_id::VARCHAR        as  store_id,
+    parquet_raw:store_city::VARCHAR      as  store_city,
+    parquet_raw:supplier_id::VARCHAR     as  supplier_id,
+    parquet_raw:supplier_name::VARCHAR   as  supplier_name,
+    parquet_raw:supplier_city::VARCHAR   as  supplier_city,
+    parquet_raw:warehouse_id::VARCHAR    as  warehouse_id ,
+    metadata$action as ERP_stream_action 
+FROM bronze_db.bronze.stream_raw_erp_data 
+qualify row_number() over (partition by order_id order by case when metadata$action  ='INSERT' then 0 else 1) = 1)
+as source
+on target.order_id = source.order_id
+
+
+when matched and source.ERP_stream_action  ='DELETE' then 
+delete
+
+when matched and source.ERP_stream_action  ='INSERT' then 
+update set 
+
+   target.order_date               = source.order_date,   
+   target.order_status             = source.order_status,    
+   target.expected_delivery        = source.expected_delivery,          
+   target.actual_delivery          = source.actual_delivery,        
+   target.is_late                  = source.is_late,
+   target.lead_time_days           = source.lead_time_days,       
+   target.category                 = source.category, 
+   target.product_sku              = source.product_sku,    
+   target.quantity_ordered         = source.quantity_ordered,         
+   target.quantity_received        = source.quantity_received,          
+   target.unit_cost                = source.unit_cost,  
+   target.total_cost               = source.total_cost,   
+   target.store_id                 = source.store_id, 
+   target.store_city               = source.store_city,   
+   target.supplier_id              = source.supplier_id,    
+   target.supplier_name            = source.supplier_name,      
+   target.supplier_city            = source.supplier_city,      
+   target.warehouse_id             = source.warehouse_id ,    
+   target.updated_at               = current_timestamp()
+
+when not matched and source.ERP_stream_action  ='INSERT' then 
+insert 
+(
     order_id,
     order_date,
     order_status,
@@ -163,37 +232,40 @@ INSERT INTO bronze_db.silver.erp_orders (
     supplier_id,
     supplier_name,
     supplier_city,
-    warehouse_id
+    warehouse_id ,
+    updated_at
 )
-select 
-parquet_raw:order_id::VARCHAR,
-    parquet_raw:order_date::TIMESTAMP,
-    parquet_raw:order_status::VARCHAR,
-    parquet_raw:expected_delivery::DATE,
-    parquet_raw:actual_delivery::DATE,
-    parquet_raw:is_late::BOOLEAN,
-    parquet_raw:lead_time_days::INT,
-    parquet_raw:category::VARCHAR,
-    parquet_raw:product_sku::VARCHAR,
-    parquet_raw:quantity_ordered::INT,
-    parquet_raw:quantity_received::INT,
-    parquet_raw:unit_cost::NUMBER(10,2),
-    parquet_raw:total_cost::NUMBER(12,2),
-    parquet_raw:store_id::VARCHAR,
-    parquet_raw:store_city::VARCHAR,
-    parquet_raw:supplier_id::VARCHAR,
-    parquet_raw:supplier_name::VARCHAR,
-    parquet_raw:supplier_city::VARCHAR,
-    parquet_raw:warehouse_id::VARCHAR
-FROM bronze_db.bronze.raw_erp_data;
+values (
+    source.order_id,
+    source.order_date,
+    source.order_status,
+    source.expected_delivery,
+    source.actual_delivery,
+    source.is_late,
+    source.lead_time_days,
+    source.category,
+    source.product_sku,
+    source.quantity_ordered,
+    source.quantity_received,
+    source.unit_cost,
+    source.total_cost,
+    source.store_id,
+    source.store_city,
+    source.supplier_id,
+    source.supplier_name,
+    source.supplier_city,
+    source.warehouse_id , 
+    current_timestamp()
+);
 
 
+
+ALTER TASK task_for_ERP RESUME;
 select * from erp_orders;
 
 
 
-
--- creating table for Parquet file format table storage in structured format
+// creating table for Parquet file format table storage in structured format
 
 CREATE OR REPLACE TABLE bronze_db.silver.inventory_snapshots (
     snapshot_date       DATE,
@@ -239,7 +311,7 @@ select
 
 
 
--- creating the table for IOT structured data storeage 
+// creating the table for IOT structured data storeage 
 CREATE OR REPLACE TABLE bronze_db.silver.device_event_readings_from_IOT (
 
     alert_type          varchar(20),
@@ -280,12 +352,12 @@ CREATE OR REPLACE TABLE bronze_db.silver.device_event_readings_from_IOT (
     sensor_unit )
 
     select 
-    -- accessing the nested arry of "alerts" column using lateral flatten 
+    // accessing the nested arry of "alerts" column using lateral flatten 
     a.value:alert_type::varchar ,
     a.value:severity::varchar ,
     a.value:triggered_at::timestamp ,
 
-    -- normal columns accesse directly by varient column "row_col"
+    // normal columns accesse directly by varient column "row_col"
     row_col:store_id::VARCHAR  ,
     row_col:store_name::VARCHAR ,      
     row_col:device_id::VARCHAR   ,   
@@ -293,13 +365,13 @@ CREATE OR REPLACE TABLE bronze_db.silver.device_event_readings_from_IOT (
     row_col:event_type::VARCHAR    , 
     row_col:timestamp::TIMESTAMP ,
 
-    -- nested array columns of metadata are accessed using dot(.) no need for lateral flatten 
+    // nested array columns of metadata are accessed using dot(.) no need for lateral flatten 
     row_col:metadata.store_floor::INT ,      
     row_col:metadata.battery_pct::INT ,     
     row_col:metadata.signal_rssi::INT ,    
     row_col:metadata.firmware::VARCHAR ,
 
-    -- The reading column contain multiple items so this needs to be LATERAL FLATTENED 
+    // The reading column contain multiple items so this needs to be LATERAL FLATTENED 
 
     r.value:sensor::varchar,
     r.value:value::number(10,2),
@@ -311,7 +383,10 @@ CREATE OR REPLACE TABLE bronze_db.silver.device_event_readings_from_IOT (
 
 select * from device_event_readings_from_IOT; // Edited JSON IOT data transformed into strructured format with Lateral flatten applied on column "readings" and "alerts"
 select * from inventory_snapshots ; // raw ERP_inventory table data processed into structured format and stored into this table
-select * from ERP_ORDERS ; // raw ERP_orders table data processed into structured format and stored into this table
+
+select * from cleaned_pos_transaction;  
+
+select * from ERP_ORDERS; // raw ERP_orders table data processed into structured format and stored into this table
 
 
-select current_warehouse();
+
