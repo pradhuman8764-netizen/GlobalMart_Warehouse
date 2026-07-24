@@ -1,24 +1,35 @@
-# GlobalMart Snowflake Project: Bronze Layer 🚀
+content = """# GlobalMart Snowflake Project: Bronze Layer 🚀
 
-This repository contains the **Bronze Layer (Raw Ingestion)** SQL scripts for the GlobalMart data pipeline. It continuously ingests raw datasets from our cloud storage bucket into Snowflake, maintaining the original formats.
-
----
-
-## 📂 Ingested Data Sources
-
-The Bronze layer processes data across three distinct file formats:
-
-| Source | Table Name | Source File Format | Ingestion Method | Target Purpose |
-| :--- | :--- | :--- | :--- | :--- |
-| **Point of Sale (POS)** | `pos_transaction` | CSV | Snowpipe (`External_pipe`) | Real-time transactional data tracking |
-| **IoT Devices** | `raw_IoT` | JSON | Snowpipe (`pipe_for_Iot`) | Nested semi-structured sensor payloads |
-| **ERP Systems** | `raw_erp_data` | Parquet | Manual Copy (`COPY INTO`) | Enterprise resource orders |
-| **ERP Inventory** | `raw_erp_Inventory_data` | Parquet | Manual Copy (`COPY INTO`) | Enterprise inventory snapshots |
+This repository contains the **Bronze Layer (Raw Ingestion)** SQL scripts for the GlobalMart data pipeline. It continuously ingests raw, unparsed datasets from an AWS S3 external stage (`External_stage`) into the `BRONZE_DB.BRONZE` schema.
 
 ---
 
-## 🛠️ Pipeline Features
+## 📂 Data Ingestion Summary
 
-* **Auto-Ingestion (Snowpipes):** Continuous ingestion is enabled for both POS CSV data and IoT JSON payloads via Snowpipes configured with `AUTO_INGEST = TRUE`.
-* **Change Data Capture (CDC):** A native Snowflake stream (`stream_for_Pos`) is mapped to the `pos_transaction` table to capture new, modified, or deleted rows for subsequent deduplication in the Silver layer.
-* **Semi-Structured Support:** Native `VARIANT` column types are utilized for both IoT JSON and ERP Parquet sources, ensuring schema-on-read flexibility.
+| Source Dataset | Target Table | Format | Ingestion Method | Active CDC Stream | Data Retention |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Point of Sale** | `pos_transaction` | CSV | Snowpipe (`External_pipe`) | `stream_for_Pos` | 14 Days |
+| **IoT Sensors** | `raw_IoT` | JSON | Snowpipe (`pipe_for_Iot`) | `stream_for_iot` | 14 Days |
+| **ERP Orders** | `raw_erp_data` | Parquet | Snowpipe (`ERP_ORDERS_PIPE`) | `stream_raw_erp_data` | 14 Days |
+| **ERP Inventory** | `raw_erp_Inventory_data` | Parquet | Manual (`COPY INTO`) | None | Default |
+
+---
+
+## 🛠️ Pipeline Architecture & Key Features
+
+* **Automated Data Ingestion (Snowpipes):** 
+  * Configured `AUTO_INGEST = TRUE` for **POS**, **IoT**, and **ERP Orders** using AWS S3 event notifications.
+  * Handles JSON array stripping (`STRIP_OUTER_ARRAY = TRUE`) and CSV header suppression (`SKIP_HEADER = 1`).
+* **Change Data Capture (CDC):**
+  * Snowflake `STREAMS` created on `pos_transaction`, `raw_IoT`, and `raw_erp_data` to track delta changes (`INSERT`, `UPDATE`, `DELETE`) for automated downstream Silver Layer processing.
+* **Semi-Structured VARIANT Storage:**
+  * Uses native `VARIANT` columns for IoT JSON payloads and ERP Parquet files to maintain raw schema-on-read flexibility.
+* **Data Governance & Recovery:**
+  * Explicit 14-day Time Travel retention configured on critical raw tables (`pos_transaction`, `raw_IoT`, `raw_erp_data`) for point-in-time recovery.
+"""
+
+file_path = "README.md"
+with open(file_path, "w", encoding="utf-8") as f:
+    f.write(content)
+
+print(f"Generated {file_path}")

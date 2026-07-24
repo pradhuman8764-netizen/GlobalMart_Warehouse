@@ -28,7 +28,7 @@ CREATE OR REPLACE TABLE bronze_db.silver.cleaned_pos_transaction (
     discount_pct        NUMBER(9,2),
     total_amount        NUMBER(12,2),
     payment_method      VARCHAR(50),
-    loyalty_points      NUMBER(10,0)
+    loyalty_points      NUMBER(10,0) ,
     created_at          TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP(),
     updated_at          TIMESTAMP_NTZ DEFAULT CURRENT_TIMESTAMP()
 ); 
@@ -381,7 +381,7 @@ as
  USING
  (
     select 
-    --- accessing the nested arry of "alerts" column using lateral flatten 
+    -- accessing the nested arry of "alerts" column using lateral flatten 
     a.value:alert_type::varchar  as alert_type,
     a.value:severity::varchar  as severity,
     a.value:triggered_at::timestamp as triggered_at ,
@@ -506,3 +506,35 @@ select * from cleaned_pos_transaction;
 select * from ERP_ORDERS; // raw ERP_orders table data processed into structured format and stored into this table
 
 
+--=============================================================================================================================================================================================
+--SHOWCASING TIME TRAVEL ALL 3 METHOD  OFFSET , STATEMENT , TIMESTAMP 
+--=============================================================================================================================================================================================
+
+select * from erp_orders;
+update erp_orders set order_status = 'Changed' where order_id = 'ORD_000001';
+
+-- using offset to travel 1 hour back 
+select * from erp_orders before (offset => 60*-60);
+--=============================================================================================================================================================================================
+-- TIME TRAVEL USING STATEMENT  BY PASSING THE QUERY_HISTORY URL OF SPECIFIC UPDATE COMMAND 
+select * from erp_orders before (statement => '01c5ec78-3202-fffc-0017-8ab2001a9a1a');
+
+--=============================================================================================================================================================================================
+-- TIME TRAVEL USING TIMESTAMP AND DATEADD FUNCTION TO TRAVEL 1 HOUR BACK 
+select * from erp_orders at (timestamp => dateadd(hour , -1 , current_timestamp()));
+
+--=============================================================================================================================================================================================
+-- IF ANY FILE ACCIDENTLY DROPS THEN WE CAN USE UNDROP TO RECCOVER  
+DROP TABLE erp_orders;
+
+UNDROP TABLE erp_orders;
+--=============================================================================================================================================================================================
+
+-- IF MAJOR DATA IS BEEN CORRUPTED OR DELETED THEN WE CAN RECOVER THE WHOLE TABLE USING TIME TRAVEL 
+
+CREATE OR REPLACE TABLE erp_orders 
+AS
+select * from erp_orders before (statement => '01c5ec78-3202-fffc-0017-8ab2001a9a1a');
+
+-- WE HAVE USED STATEMENT OPTION TO RECOVER THE WHOLE FILE 
+--=============================================================================================================================================================================================
