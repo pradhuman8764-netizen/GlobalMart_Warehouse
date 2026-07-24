@@ -134,7 +134,7 @@ select * from cleaned_pos_transaction ;
 
 
 --=============================================================================================================================================================================================
-// creating cleaned parquet data of ERP ORDERS from bronze schemaa to silver schema 
+-- creating cleaned parquet data of ERP ORDERS from bronze schemaa to silver schema 
 --=============================================================================================================================================================================================
 CREATE OR REPLACE TABLE erp_orders (
     order_id            VARCHAR(50),
@@ -381,12 +381,12 @@ as
  USING
  (
     select 
-    // accessing the nested arry of "alerts" column using lateral flatten 
+    --- accessing the nested arry of "alerts" column using lateral flatten 
     a.value:alert_type::varchar  as alert_type,
     a.value:severity::varchar  as severity,
     a.value:triggered_at::timestamp as triggered_at ,
 
-    // normal columns accesse directly by varient column "row_col"
+    -- normal columns accesse directly by varient column "row_col"
     row_col:store_id::VARCHAR  as store_id ,
     row_col:store_name::VARCHAR as store_name,      
     row_col:device_id::VARCHAR  as device_id ,   
@@ -394,13 +394,13 @@ as
     row_col:event_type::VARCHAR  as event_type  , 
     row_col:timestamp::TIMESTAMP  as event_timestamp,
 
-    // nested array columns of metadata are accessed using dot(.) no need for lateral flatten 
+    -- nested array columns of metadata are accessed using dot(.) no need for lateral flatten 
     row_col:metadata.store_floor::INT  as store_floor,       
     row_col:metadata.battery_pct::INT  as battery_pct,     
     row_col:metadata.signal_rssi::INT  as signal_rssi,    
     row_col:metadata.firmware::VARCHAR  as firmware_version,
 
-    // The reading column contain multiple items so this needs to be LATERAL FLATTENED 
+    -- The reading column contain multiple items so this needs to be LATERAL FLATTENED 
 
     r.value:sensor::varchar as sensor_name,
     r.value:value::number(10,2) as sensor_value,
