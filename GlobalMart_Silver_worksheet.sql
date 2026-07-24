@@ -506,4 +506,3 @@ select * from cleaned_pos_transaction;
 select * from ERP_ORDERS; // raw ERP_orders table data processed into structured format and stored into this table
 
 
-
