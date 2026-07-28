@@ -64,20 +64,19 @@ UNIT_PRICE,
 DISCOUNT_PCT,
 TOTAL_AMOUNT,
 PAYMENT_METHOD,
-LOYALTY_POINTS,
-metadata$action as stream_action
+LOYALTY_POINTS 
 
 FROM bronze_db.bronze.stream_for_pos
-QUALIFY row_number() OVER (PARTITION BY  TRANSACTION_ID ORDER BY CASE WHEN metadata$action = 'INSERT' THEN 0 ELSE 1 END) = 1
+QUALIFY row_number() OVER (PARTITION BY  TRANSACTION_ID , TRANSACTION_DATE ORDER BY  TRANSACTION_DATE DESC) = 1
 
 ) AS source
 on target.TRANSACTION_ID = source.TRANSACTION_ID 
-
+AND target.TRANSACTION_DATE = source.TRANSACTION_DATE
 
 --=============================================================================================================================================================================================
 -- FOR UPDATION IN TABE 
 --=============================================================================================================================================================================================
-WHEN MATCHED AND stream_action = 'INSERT' THEN
+WHEN MATCHED  THEN
 
 UPDATE SET 
         target.STORE_ID         = source.STORE_ID,
@@ -101,15 +100,10 @@ UPDATE SET
         target.updated_at       = current_timestamp()
 
 --=============================================================================================================================================================================================
--- FOR DELETION IN TABLE 
---=============================================================================================================================================================================================
-WHEN MATCHED AND  stream_action = 'DELETE' THEN
-DELETE 
 
---=============================================================================================================================================================================================
 -- FOR INSERTION IN TABLE 
 --=============================================================================================================================================================================================
-WHEN NOT MATCHED AND stream_action = 'INSERT' THEN
+WHEN NOT MATCHED THEN
 
 INSERT (
         TRANSACTION_ID, STORE_ID, STORE_NAME, STORE_CITY, STORE_REGION, 
@@ -127,8 +121,9 @@ INSERT (
 --=============================================================================================================================================================================================
 -- for first time when we create or replace an task we have to resume the task 
 ALTER TASK start_merge_when_stream_updates resume ;
-select * FROM TABLE(INFORMATION_SCHEMA.TASK_HISTORY()) order by scheduled_time desc;
 select * from cleaned_pos_transaction ;
+
+
 --=============================================================================================================================================================================================
 
 
@@ -404,26 +399,22 @@ as
 
     r.value:sensor::varchar as sensor_name,
     r.value:value::number(10,2) as sensor_value,
-    r.value:unit::varchar as sensor_unit ,
-    metadata$action as stream_action_for_iot ,
+    r.value:unit::varchar as sensor_unit 
     
     FROM bronze_db.bronze.stream_for_iot ,
     LATERAL FLATTEN (input => row_col:readings) as r,
     LATERAL FLATTEN(input => row_col:alerts , outer => TRUE)  as a  // used outer to describe snowfalke to use outer join instead on inner as alerts may have nulls value 
 
-    QUALIFY row_number() OVER (PARTITION BY   event_id , sensor_name ORDER BY CASE WHEN metadata$action ='INSERT' THEN 0 ELSE 1 END) = 1 ) as source 
+    QUALIFY row_number() OVER (PARTITION BY   event_id , sensor_name ORDER BY event_timestamp DESC ) = 1 ) as source 
 
-    on source.event_id = target.event_id and target.sensor_name = source.sensor_name
+    on source.event_id = target.event_id and target.sensor_name = source.sensor_name and target.event_timestamp = source.event_timestamp
     --=============================================================================================================================================================================================
-    -- FOR DELETION 
-   WHEN MATCHED AND  stream_action_for_iot = 'DELETE'
-   THEN DELETE
-   --=============================================================================================================================================================================================
+   
 
    --=============================================================================================================================================================================================
    -- FOR UPDATION IN TABLE 
    
-   WHEN MATCHED AND stream_action_for_iot = 'INSERT'
+   WHEN MATCHED
    THEN UPDATE SET 
    
    TARGET.alert_type      = source.alert_type ,
@@ -448,7 +439,7 @@ as
 --=============================================================================================================================================================================================
 --FOR INSERTION IN TABLE 
 
-WHEN NOT MATCHED AND stream_action_for_iot = 'INSERT'
+WHEN NOT MATCHED 
 THEN 
 INSERT 
 (
