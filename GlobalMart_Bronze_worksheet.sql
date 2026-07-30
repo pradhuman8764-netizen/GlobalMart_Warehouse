@@ -6,12 +6,14 @@ CREATE OR REPLACE SCHEMA bronze;
 -- stage created for the Pos Transaction and IoT transaction and ERP ORDERS
 --=============================================================================================================================================================================================
 CREATE OR REPLACE STAGE External_stage
-URL = 's3://globalmart-pos-transactions'
+URL = 's3://globalmart-transactions-data'
 CREDENTIALS = (
-AWS_KEY_ID = 'AKIASFAQG3U64JR46ELZ'
-AWS_SECRET_KEY = '9KwIfo3/0B8T6kTfzvQ6Nr2U18NaDS1hI6O1a7sb'
+AWS_KEY_ID = 'AKIA52JVNFPDEKJ5AIMI'
+AWS_SECRET_KEY = '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'
 
 );
+
+list @External_stage;
 
 --=============================================================================================================================================================================================
 -- initializing the raw file which will have data which can be duplicated 
@@ -45,7 +47,7 @@ CREATE OR REPLACE PIPE External_pipe
 AUTO_INGEST = TRUE
 AS
 COPY INTO pos_transaction 
-FROM @External_stage/pos_transaction_folder/
+FROM @External_stage/Source_Pos_transaction/
 file_format =(
  SKIP_HEADER = 1
  TYPE = 'CSV'
@@ -67,8 +69,6 @@ ON TABLE pos_transaction;
 select * from pos_transaction;
 select * from stream_for_pos;
 
-
-
 --=============================================================================================================================================================================================
 --ccreating IOT TABLE  with varient column 
 --=============================================================================================================================================================================================
@@ -86,7 +86,7 @@ create or replace stream stream_for_iot on table  raw_Iot;
  AUTO_INGEST = TRUE
  AS
  COPY INTO  raw_IoT
- FROM '@External_stage/IoT folder/'
+ FROM @External_stage/Source_IOT_Transaction/
  FILE_FORMAT=(
  TYPE = 'JSON'
  STRIP_OUTER_ARRAY = TRUE     
@@ -119,19 +119,18 @@ create or replace stream stream_raw_erp_data on table  raw_erp_data;
 
 --=============================================================================================================================================================================================
 -- CREATING AUTO INGEST PIPE FOR AUTO DATA INSERTION 
-create or replace pipe ERP_ORDERS_PIPE
-auto_ingest = TRUE
+CREATE OR REPLACE PIPE ERP_ORDERS_PIPE
+AUTO_INGEST= TRUE
 as
 COPY INTO raw_erp_data
-FROM @External_stage/Erp_parquet_data/ 
-                                              -- same folder contain different files // we will make different folder for each file later 
+FROM @External_stage/Source_ERP_Transaction/
 FILE_FORMAT = (TYPE = 'PARQUET');
 --=============================================================================================================================================================================================
 
 -- CHECKING THE PIPE STATUS AND STREAM DATA
 SELECT SYSTEM$PIPE_STATUS('ERP_ORDERS_PIPE');
 select * from stream_raw_erp_data ;
-SELECT parquet_raw FROM raw_erp_data;
+
 --=============================================================================================================================================================================================
 
 
@@ -143,21 +142,23 @@ SELECT parquet_raw FROM raw_erp_data;
 --=============================================================================================================================================================================================
 CREATE OR REPLACE TABLE raw_erp_Inventory_data (parquet_Inventory_raw VARIANT);
 
+
+CREATE OR REPLACE PIPE pipe_for_erp_inventory
+AUTO_INGEST = TRUE
+AS
 COPY INTO raw_erp_Inventory_data 
-FROM @External_stage/Erp_parquet_data/erp_inventory.parquet -- we also have to define the file name in the folder because 
+FROM @External_stage/Source_ERP_Inventory/
 FILE_FORMAT = (TYPE = 'PARQUET');
 
 select parquet_Inventory_raw from  raw_erp_Inventory_data;
 --=============================================================================================================================================================================================
 
 
-
-
 --=============================================================================================================================================================================================
 select * from raw_iot; // JSON format data stored into IOT table having pipe created 
 select * from pos_transaction;  // pos_transaction (CSV) having stage and stream , 5000 row inserted 15000 reamining when we put file in s3 it fetch automatically
-select * from raw_erp_data;  // raw erp table in bronze schema where raw data is stored having stage connected with s3 bucket 
-select * from raw_erp_inventory_data; // raw erp_inventory table in bronze schema where raw data is stored having stage connected with s3 bucket 
+SELECT parquet_raw FROM raw_erp_data; // raw erp table in bronze schema where raw data is stored having stage connected with s3 bucket 
+select parquet_Inventory_raw from raw_erp_inventory_data; // raw erp_inventory table in bronze schema where raw data is stored having stage connected with s3 bucket 
 
 
 

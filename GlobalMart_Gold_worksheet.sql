@@ -1,4 +1,6 @@
-create schema bronze_db.gold;
+use database BRONZE_DB;
+
+create or replace schema bronze_db.gold;
 
 --=============================================================================================================================================================================================
 --Finding for each day transaction details ( store infomation , transaction Information , total revenue , total unit sold , unique customers) 
@@ -22,9 +24,9 @@ order by transaction_date;
 -- finding running total of last 30 day over store id and  transaction date 
 --=============================================================================================================================================================================================
 
-select  store_id  , store_name , transaction_date::date as trans_date , total_amount ,
+select  store_id  , store_name , transaction_date::date as trans_date , greatest(total_amount,0) as total_amount,
 
-sum(total_amount) over ( partition by store_id  order by trans_date  rows between 29 preceding and current row) as running_total
+sum(total_amount) over ( partition by store_id  order by trans_date  range between interval '29 day' preceding and current row) as running_total
  from bronze_db.silver.cleaned_pos_transaction;
 
 --=============================================================================================================================================================================================
@@ -54,8 +56,8 @@ select * from pos_iot_sensor_data;
 --=============================================================================================================================================================================================
 -- finding 30 days rolling revenue based on each store id
 --=============================================================================================================================================================================================
-with cte as (
-select store_id , transaction_date , sum(TOTAL_AMOUNT) AS daily_amount 
+with pos_revenue_summary as (
+select store_id , transaction_date::date as transaction_date , sum(greatest(TOTAL_AMOUNT,0)) AS daily_amount 
 from bronze_db.silver.cleaned_pos_transaction 
 group by store_id , transaction_date 
 order by transaction_date ) 
@@ -63,9 +65,9 @@ order by transaction_date )
 
 select store_id  , transaction_date , sum(daily_amount)
 
-over (partition by store_id order by transaction_date range between interval '30 day' preceding and current row) as total_revenue_30_days 
+over (partition by store_id order by transaction_date range between interval '29 day' preceding and current row) as total_revenue_30_days 
 
-from cte;
+from pos_revenue_summary;
 --=============================================================================================================================================================================================
 -- REVENUE VS COST GAP JONED POS_TRANSACTION TABLE WITH ERP_ORDERS FOR FINDING GROSS MARGIN
 
