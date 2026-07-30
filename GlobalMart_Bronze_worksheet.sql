@@ -5,13 +5,14 @@ CREATE OR REPLACE SCHEMA bronze;
 --=============================================================================================================================================================================================
 -- stage created for the Pos Transaction and IoT transaction and ERP ORDERS
 --=============================================================================================================================================================================================
+/*
 CREATE OR REPLACE STAGE External_stage
 URL = 's3://globalmart-transactions-data'
 CREDENTIALS = (
 AWS_KEY_ID = 'AKIA52JVNFPDEKJ5AIMI'
 AWS_SECRET_KEY = 'F2fO7MB/1J9vMZkbDr5OfvgINXEDymJME0teaB3W'
 
-);
+); */
 
 list @External_stage;
 
